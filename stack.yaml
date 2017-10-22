@@ -3,7 +3,9 @@ compiler: ghc-8.2
 
 packages:
 - .
-extra-deps: []
+extra-deps:
+  - deepseq-1.4.3.0
+  - array-0.5.2.0
 
 flags: {}
 
