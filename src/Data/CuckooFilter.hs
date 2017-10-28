@@ -38,15 +38,15 @@ fstBucket a CuckooFilter{..} =
   -- Potential overflows of casting a Word32 (which is unsigned) into
   -- an Int (which is 32 bit signed on 32-bit platforms) is reified
   -- into a positive integer by `mod`.
-  fromIntegral (asWord32 $ hash32 a) `mod` maxSize
+  fromIntegral (toWord32 a) `mod` maxSize
 
 -- ^ Computes the second available bucket position for this element.
 -- Referred as `i2` or `h2` in the original paper.
-sndBucket :: (Hashable32 a, ToFingerprint a) => a -> CuckooFilter m a -> Int
+sndBucket :: Hashable32 a => a -> CuckooFilter m a -> Int
 sndBucket a cf@CuckooFilter{..} =
   let (h1 :: Word64) = fromIntegral (fstBucket a cf)
-      (h2 :: Word64) = fromIntegral $ asWord32 $ toHash32 (toFingerprint a)
-  in (fromIntegral (h1 `xor` h2)) `mod` maxSize
+      (h2 :: Word64) = fromIntegral (toWord32 a)
+  in fromIntegral (h1 `xor` h2) `mod` maxSize
 
 -- | Creates a new `CuckooFilter` with sensible default parameters.
 new :: PrimMonad m => m (CuckooFilter m a)
@@ -60,7 +60,7 @@ new = do
     , storage = ba
     }
 
-insert :: (PrimMonad m, Hashable32 a, ToFingerprint a)
+insert :: (PrimMonad m, Hashable32 a)
        => a
        -> CuckooFilter m a
        -> m ()
@@ -70,22 +70,19 @@ insert a cf@CuckooFilter{..} = do
   let i2 = sndBucket a cf
   v1 <- readByteArray storage i1
   case v1 == emptyMarker of
-    True  -> writeByteArray storage i1 (toStorable f)
+    True  -> writeByteArray storage i1 f
     False -> do
       v2 <- readByteArray storage i2
-      case v2 == emptyMarker of
-        True  -> writeByteArray storage i2 (toStorable f)
-        False -> return ()
+      when (v2 == emptyMarker) $ writeByteArray storage i2 f
 
 delete :: a -> CuckooFilter s a -> CuckooFilter s a
 delete _ cf = cf
 
-lookup :: (PrimMonad m, Hashable32 a, ToFingerprint a)
+lookup :: (PrimMonad m, Hashable32 a)
        => a
        -> CuckooFilter m a
        -> m Bool
 lookup a cf@CuckooFilter{..} = do
-  let f  = toFingerprint a
   let i1 = fstBucket a cf
   let i2 = sndBucket a cf
   v1 <- readByteArray storage i1

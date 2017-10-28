@@ -6,16 +6,14 @@
 module Data.CuckooFilter.Fingerprint (
     Fingerprint
   , ToFingerprint(..)
-  , toHash32
+  , toWord32
   , emptyMarker
-  , toStorable
   , module HashImplementation
   ) where
 
 import Data.Digest.Murmur32 as HashImplementation
-import qualified Data.ByteString as B
-import Data.Word
 import Data.Primitive.Types
+import Data.Word
 
 -- We choose 8 as the fingerprint size. This value is somewhat
 -- abitrary but hopefully sufficient. In the original paper
@@ -31,21 +29,19 @@ import Data.Primitive.Types
 -- collision resistance (assuming a base-2 log).
 newtype Fingerprint = FP Word8 deriving (Show, Eq)
 
-newtype StorableFingerprint = SFP Word8 deriving (Show, Eq)
-
-instance Prim StorableFingerprint where
-  sizeOf# (SFP w) = sizeOf# w
-  alignment# (SFP w) = alignment# w
-  indexByteArray# a b = SFP (indexByteArray# a b)
+instance Prim Fingerprint where
+  sizeOf# (FP w) = sizeOf# w
+  alignment# (FP w) = alignment# w
+  indexByteArray# a b = FP (indexByteArray# a b)
   readByteArray# a b c = case readByteArray# a b c of
-    (# s, w8 #) -> (# s, SFP w8 #)
-  writeByteArray# a b (SFP w) s = writeByteArray# a b w s
-  setByteArray# a b c (SFP w) s = setByteArray# a b c w s
-  indexOffAddr# a b = SFP (indexOffAddr# a b)
+    (# s, w8 #) -> (# s, FP w8 #)
+  writeByteArray# a b (FP w) = writeByteArray# a b w
+  setByteArray# a b c (FP w) = setByteArray# a b c w
+  indexOffAddr# a b = FP (indexOffAddr# a b)
   readOffAddr# a b c = case readOffAddr# a b c of
-    (# s, w8 #) -> (# s, SFP w8 #)
-  writeOffAddr# a b (SFP w) s = writeOffAddr# a b w s
-  setOffAddr# a b c (SFP w) d = setOffAddr# a b c w d
+    (# s, w8 #) -> (# s, FP w8 #)
+  writeOffAddr# a b (FP w) = writeOffAddr# a b w
+  setOffAddr# a b c (FP w) = setOffAddr# a b c w
 
 -- | `ToFingerprint` represent the class of types which can be
 -- turned into a `Fingerprint`.
@@ -57,14 +53,12 @@ class ToFingerprint a where
   toFingerprint :: a -> Fingerprint
 
 instance Hashable32 a => ToFingerprint a where
-  toFingerprint x = FP $ fromIntegral $ asWord32 (hash32 x) `mod` (fromIntegral (maxBound :: Word8))
+  toFingerprint x = case fromIntegral $ asWord32 (hash32 x) `mod` (fromIntegral (maxBound :: Word8)) of
+    0x0 -> FP 0x1
+    w8  -> FP w8
 
 emptyMarker :: Word8
 emptyMarker = 0
 
-toStorable :: Fingerprint -> StorableFingerprint
-toStorable (FP 0x0) = SFP 0x1
-toStorable (FP w8)  = SFP w8
-
-toHash32 :: Fingerprint -> Hash32
-toHash32 (FP a) = hash32 $ (B.pack [a])
+toWord32 :: Hashable32 a => a -> Word32
+toWord32 = asWord32 . hash32
