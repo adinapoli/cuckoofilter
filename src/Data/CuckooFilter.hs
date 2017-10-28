@@ -58,8 +58,22 @@ new = do
     , storage = ba
     }
 
-insert :: a -> CuckooFilter s a -> CuckooFilter s a
-insert _ cf = cf
+insert :: (PrimMonad m, Hashable32 a, ToFingerprint a)
+       => a
+       -> CuckooFilter m a
+       -> m ()
+insert a cf@CuckooFilter{..} = do
+  let f  = toFingerprint a
+  let i1 = fstBucket a cf
+  let i2 = sndBucket a cf
+  v1 <- readByteArray storage i1
+  case v1 == emptyMarker of
+    True  -> writeByteArray storage i1 f
+    False ->do
+      v2 <- readByteArray storage i2
+      case v2 == emptyMarker of
+        True  -> writeByteArray storage i2 f
+        False -> return ()
 
 delete :: a -> CuckooFilter s a -> CuckooFilter s a
 delete _ cf = cf

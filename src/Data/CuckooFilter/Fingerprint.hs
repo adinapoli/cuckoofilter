@@ -1,16 +1,19 @@
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 module Data.CuckooFilter.Fingerprint (
     Fingerprint
   , ToFingerprint(..)
   , toHash32
+  , emptyMarker
   , module HashImplementation
   ) where
 
 import Data.Digest.Murmur32 as HashImplementation
 import qualified Data.ByteString as B
 import Data.Word
+import Data.Primitive.Types
 
 -- We choose 8 as the fingerprint size. This value is somewhat
 -- abitrary but hopefully sufficient. In the original paper
@@ -26,6 +29,20 @@ import Data.Word
 -- collision resistance (assuming a base-2 log).
 newtype Fingerprint = FP Word8 deriving (Show, Eq)
 
+instance Prim Fingerprint where
+  sizeOf# (FP w) = sizeOf# w
+  alignment# (FP w) = alignment# w
+  indexByteArray# a b = FP (indexByteArray# a b)
+  readByteArray# a b c = case readByteArray# a b c of
+    (# s, w8 #) -> (# s, FP w8 #)
+  writeByteArray# a b (FP w) s = writeByteArray# a b w s
+  setByteArray# a b c (FP w) s = setByteArray# a b c w s
+  indexOffAddr# a b = FP (indexOffAddr# a b)
+  readOffAddr# a b c = case readOffAddr# a b c of
+    (# s, w8 #) -> (# s, FP w8 #)
+  writeOffAddr# a b (FP w) s = writeOffAddr# a b w s
+  setOffAddr# a b c (FP w) d = setOffAddr# a b c w d
+
 -- | `ToFingerprint` represent the class of types which can be
 -- turned into a `Fingerprint`.
 -- The paper defines a `Fingerprint` as being "a bit string derived
@@ -34,6 +51,9 @@ newtype Fingerprint = FP Word8 deriving (Show, Eq)
 -- an arbitrary choice.
 class ToFingerprint a where
   toFingerprint :: a -> Fingerprint
+
+emptyMarker :: Word8
+emptyMarker = 0
 
 toHash32 :: Fingerprint -> Hash32
 toHash32 (FP a) = hash32 $ (B.pack [a])
