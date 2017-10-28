@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 module Data.CuckooFilter.ST (
-  lookup
+    new
+  , lookup
   ) where
 
 import qualified Data.CuckooFilter as Prim
@@ -13,7 +14,7 @@ import Control.Monad.ST
 new :: ST s (CuckooFilter (ST s) a)
 new = Prim.new
 
-lookup :: (Hashable32 a, ToFingerprint a)
+lookup :: (Hashable32 a)
        => a
        -> (forall s. CuckooFilter (ST s) a)
        -> Bool
