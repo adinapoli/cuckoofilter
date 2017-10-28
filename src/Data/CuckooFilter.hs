@@ -13,6 +13,7 @@ module Data.CuckooFilter (
 import Prelude hiding (lookup)
 import Data.Primitive.ByteArray
 import Control.Monad.Primitive
+import Control.Monad
 import Data.Word
 import Data.Bits
 import Data.CuckooFilter.Fingerprint
@@ -52,6 +53,7 @@ new :: PrimMonad m => m (CuckooFilter m a)
 new = do
   let sz = 2 * 1000000 -- ~ 2MB
   ba <- newByteArray sz
+  forM_ [0 .. sz] (\i -> writeByteArray ba i emptyMarker)
   return CuckooFilter {
       maxSize = sz
     , maxNumKicks = 500
@@ -68,15 +70,24 @@ insert a cf@CuckooFilter{..} = do
   let i2 = sndBucket a cf
   v1 <- readByteArray storage i1
   case v1 == emptyMarker of
-    True  -> writeByteArray storage i1 f
-    False ->do
+    True  -> writeByteArray storage i1 (toStorable f)
+    False -> do
       v2 <- readByteArray storage i2
       case v2 == emptyMarker of
-        True  -> writeByteArray storage i2 f
+        True  -> writeByteArray storage i2 (toStorable f)
         False -> return ()
 
 delete :: a -> CuckooFilter s a -> CuckooFilter s a
 delete _ cf = cf
 
-lookup :: a -> CuckooFilter s a -> Bool
-lookup _ _ = False
+lookup :: (PrimMonad m, Hashable32 a, ToFingerprint a)
+       => a
+       -> CuckooFilter m a
+       -> m Bool
+lookup a cf@CuckooFilter{..} = do
+  let f  = toFingerprint a
+  let i1 = fstBucket a cf
+  let i2 = sndBucket a cf
+  v1 <- readByteArray storage i1
+  v2 <- readByteArray storage i2
+  return (v1 /= emptyMarker || v2 /= emptyMarker)
