@@ -9,6 +9,7 @@ module Data.CuckooFilter.Fingerprint (
   , toWord32
   , emptyMarker
   , module HashImplementation
+  , unsafeExtractFingerprint
   ) where
 
 import Data.Digest.Murmur32 as HashImplementation
@@ -25,9 +26,12 @@ import Data.Word
 --
 -- Where `n` is the size of input and `b` is the number of
 -- buckets. Using 8 bits for `f` and setting `b = 4` would
--- allow us to comfortably store 1 billion elements with enough
+-- allow us to comfortably store 1 million elements with enough
 -- collision resistance (assuming a base-2 log).
 newtype Fingerprint = FP Word8 deriving (Show, Eq)
+
+unsafeExtractFingerprint :: Fingerprint -> Word8
+unsafeExtractFingerprint (FP x) = x
 
 instance Prim Fingerprint where
   sizeOf# (FP w) = sizeOf# w
@@ -57,8 +61,8 @@ instance Hashable32 a => ToFingerprint a where
     0x0 -> FP 0x1
     w8  -> FP w8
 
-emptyMarker :: Word8
-emptyMarker = 0
+emptyMarker :: Fingerprint
+emptyMarker = FP 0x0
 
 toWord32 :: Hashable32 a => a -> Word32
 toWord32 = asWord32 . hash32
